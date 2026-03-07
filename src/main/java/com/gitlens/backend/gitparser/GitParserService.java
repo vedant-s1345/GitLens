@@ -66,9 +66,20 @@ public class GitParserService {
 
             log.info("Clone complete. Parsing commits...");
 
-            Iterable<RevCommit> revCommits = git.log().call();
+            Iterable<RevCommit> revCommits;
+            try {
+                revCommits = git.log().call();
+            } catch (Exception logEx) {
+                log.warning("git.log() failed: " + logEx.getMessage() + " | Cause: " + (logEx.getCause() != null ? logEx.getCause().getMessage() : "none") + " | Class: " + logEx.getClass().getName());
+                revCommits = java.util.Collections.emptyList();
+            }
+            
             for (RevCommit revCommit : revCommits) {
-                processCommit(git, revCommit, repo);
+                try {
+                    processCommit(git, revCommit, repo);
+                } catch (Exception e) {
+                    log.warning("Skipping problematic commit " + revCommit.getName() + ": " + e.getMessage());
+                }
             }
 
             calculateAnalytics(repositoryId);
@@ -84,7 +95,7 @@ public class GitParserService {
             log.info("Repository analysis complete! Total commits: " + totalCommits);
 
         } catch (Exception e) {
-            log.severe("Failed to parse repository: " + e.getMessage());
+            log.severe("Failed to parse repository: " + e.getMessage() + " | Cause: " + (e.getCause() != null ? e.getCause().getMessage() : "none") + " | Class: " + e.getClass().getName());
             repo.setStatus("FAILED");
             repositoryRepo.save(repo);
             deleteDirectory(new File(localPath));
@@ -177,23 +188,28 @@ public class GitParserService {
         }
     }
 
-    private List<DiffEntry> getDiffs(Git git, RevCommit commit) throws Exception {
-        ObjectReader reader = git.getRepository().newObjectReader();
-        AbstractTreeIterator newTree = new CanonicalTreeParser(null,
-                reader, commit.getTree());
-        AbstractTreeIterator oldTree;
+    private List<DiffEntry> getDiffs(Git git, RevCommit commit) {
+        try {
+            ObjectReader reader = git.getRepository().newObjectReader();
+            AbstractTreeIterator newTree = new CanonicalTreeParser(null,
+                    reader, commit.getTree());
+            AbstractTreeIterator oldTree;
 
-        if (commit.getParentCount() > 0) {
-            oldTree = new CanonicalTreeParser(null, reader,
-                    commit.getParent(0).getTree());
-        } else {
-            oldTree = new EmptyTreeIterator();
+            if (commit.getParentCount() > 0) {
+                oldTree = new CanonicalTreeParser(null, reader,
+                        commit.getParent(0).getTree());
+            } else {
+                oldTree = new EmptyTreeIterator();
+            }
+
+            return git.diff()
+                    .setOldTree(oldTree)
+                    .setNewTree(newTree)
+                    .call();
+        } catch (Exception e) {
+            log.warning("Could not get diffs for commit " + commit.getName() + ": " + e.getMessage());
+            return List.of(); // skip this commit's diffs gracefully
         }
-
-        return git.diff()
-                .setOldTree(oldTree)
-                .setNewTree(newTree)
-                .call();
     }
 
     private int[] countLines(Git git, DiffEntry diff) {
