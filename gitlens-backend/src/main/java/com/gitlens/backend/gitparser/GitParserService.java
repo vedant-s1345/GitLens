@@ -61,14 +61,14 @@ public class GitParserService {
             Git git = Git.cloneRepository()
                     .setURI(repo.getUrl())
                     .setDirectory(new File(localPath))
-                    .setCloneAllBranches(false)
+                    .setCloneAllBranches(true)
                     .call();
 
             log.info("Clone complete. Parsing commits...");
 
             Iterable<RevCommit> revCommits;
             try {
-                revCommits = git.log().call();
+                revCommits = git.log().all().call();
             } catch (Exception logEx) {
                 log.warning("git.log() failed: " + logEx.getMessage() + " | Cause: " + (logEx.getCause() != null ? logEx.getCause().getMessage() : "none") + " | Class: " + logEx.getClass().getName());
                 revCommits = java.util.Collections.emptyList();
@@ -104,6 +104,10 @@ public class GitParserService {
 
     private void processCommit(Git git, RevCommit revCommit, Repository repo) {
         try {
+        	if (commitRepo.existsByCommitHashAndRepositoryId(
+                    revCommit.getName(), repo.getId())) {
+                return;
+            }
             PersonIdent author = revCommit.getAuthorIdent();
 
             Contributor contributor = contributorRepo
