@@ -228,7 +228,7 @@ function ActivityPatterns({ commits, contributors, selectedAuthor }) {
           ))}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-          {['12a','6a','12p','6p','12a'].map((l,i) => (
+          {['12am','6am','12pm','6pm','12am'].map((l,i) => (
             <span key={i} style={{ fontSize: 9, color: '#334155', fontFamily: "'JetBrains Mono',monospace" }}>{l}</span>
           ))}
         </div>
